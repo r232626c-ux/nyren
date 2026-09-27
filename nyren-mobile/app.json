@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "Coli Mobile",
+    "slug": "coli-mobile",
+    "version": "1.0.0",
+    "sdkVersion": "53.0.0",
+    "platforms": ["ios", "android", "web"],
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "extra": {
+      "ENVIRONMENT": "development"
+    },
+    "updates": {
+      "fallbackToCacheTimeout": 0
+    },
+    "assetBundlePatterns": ["**/*"],
+    "scheme": "coli",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#000000"
+      },
+      "permissions": ["INTERNET", "RECORD_AUDIO"],
+      "package": "com.anonymous.colimobile"
+    },
+    "plugins": ["expo-asset"]
+  }
+}
+

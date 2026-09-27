@@ -1,0 +1,10 @@
+{
+  "domain": "coli.ai",
+  "title": "COLI",
+  "description": "AI assistant for clinical and lab workflows.",
+  "slogan": "Smarter Care. Stronger Future.",
+  "colors": [{ "hex": "#22D3EE", "name": "cyan" }, { "hex": "#8B5CF6", "name": "violet" }],
+  "logos": [{ "url": "https://coli.ai/logo.png", "resolution": { "width": 400, "height": 100 } }],
+  "socials": [{ "url": "https://twitter.com/coli_ai" }],
+  "address": { "city": "Harare", "country": "ZW" }
+}

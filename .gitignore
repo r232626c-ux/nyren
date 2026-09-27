@@ -1,0 +1,61 @@
+# Environment secrets
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Expo
+.expo/
+.expo-shared/
+dist/
+web-build/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# React Native
+android/.gradle/
+android/.idea/
+android/local.properties
+ios/Pods/
+
+# Uploads / generated files
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Logs
+*.log
+logs/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# MongoDB installers
+*.msi
+*.zip
+
+# Android signing/debug files
+*.keystore
+*.jks
+
+# Generated install output
+npm-install-output.txt
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.temp
