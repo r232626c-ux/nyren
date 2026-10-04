@@ -13,6 +13,7 @@ class VoiceEngine extends EventEmitter {
     this.isStarting = false;
     this.isSpeaking = false;
     this.isDestroyed = false;
+    this.shouldListen = false;
 
     this.state = "IDLE";
     this.isActive = false;
@@ -110,9 +111,9 @@ class VoiceEngine extends EventEmitter {
     this.isActive = false;
     this.cancelCommandTimers();
 
-    if (!this.isSpeaking && !this.isDestroyed) {
+    if (this.shouldListen && !this.isSpeaking && !this.isDestroyed) {
       this.setState("LISTENING");
-      this.startListening();
+      this.startListening({ preserveIntent: true });
     }
 
     this.emit("commandTimeout");
@@ -201,7 +202,8 @@ class VoiceEngine extends EventEmitter {
 
     navigator.mediaDevices
       .getUserMedia({ audio: true })
-      .then(() => {
+      .then((permissionStream) => {
+        permissionStream.getTracks().forEach((track) => track.stop());
         this.webSupported = true;
 
         const recognition = new SpeechRecognition();
@@ -221,7 +223,7 @@ class VoiceEngine extends EventEmitter {
           this.isStarting = false;
           this.emit("speechEnd");
 
-          if (this.state === "LISTENING" && !this.isSpeaking && !this.isDestroyed) {
+          if (this.shouldListen && this.state === "LISTENING" && !this.isSpeaking && !this.isDestroyed) {
             this.safeRestart();
           }
         };
@@ -236,7 +238,7 @@ class VoiceEngine extends EventEmitter {
             return;
           }
 
-          if (this.state === "LISTENING" && !this.isSpeaking) {
+          if (this.shouldListen && this.state === "LISTENING" && !this.isSpeaking) {
             this.safeRestart();
           }
 
@@ -289,7 +291,7 @@ class VoiceEngine extends EventEmitter {
       this.isListening = false;
       this.emit("speechEnd");
 
-      if (!this.isSpeaking && !this.isDestroyed) {
+      if (this.shouldListen && !this.isSpeaking && !this.isDestroyed) {
         this.safeRestart();
       }
     };
@@ -301,12 +303,13 @@ class VoiceEngine extends EventEmitter {
 
     Voice.onSpeechError = (e) => {
       this.isListening = false;
+      const errorCode = e?.error || e?.message || e;
 
-      if (this.state === "LISTENING" && !this.isSpeaking) {
+      if (this.shouldListen && this.state === "LISTENING" && !this.isSpeaking) {
         this.safeRestart();
       }
 
-      this.emit("speechError", e);
+      this.emit("speechError", errorCode);
     };
 
     this.startListening();
@@ -315,7 +318,9 @@ class VoiceEngine extends EventEmitter {
   // ================================
   // START LISTENING (SAFE)
   // ================================
-  async startListening() {
+  async startListening({ preserveIntent = false } = {}) {
+    if (!preserveIntent) this.shouldListen = true;
+    if (!this.shouldListen || this.isDestroyed) return;
     if (this.isListening || this.isStarting || this.isSpeaking) return;
 
     this.isStarting = true;
@@ -342,7 +347,18 @@ class VoiceEngine extends EventEmitter {
   // ================================
   // STOP LISTENING
   // ================================
-  async stopListening() {
+  async stopListening({ preserveIntent = false } = {}) {
+    if (!preserveIntent) {
+      this.shouldListen = false;
+      this.isActive = false;
+      this.commandBuffer = "";
+      this.cancelCommandTimers();
+      if (this.restartTimer) {
+        clearTimeout(this.restartTimer);
+        this.restartTimer = null;
+      }
+      this.setState("IDLE");
+    }
     try {
       if (Platform.OS === "web") {
         this.webRecognition?.stop();
@@ -367,13 +383,13 @@ class VoiceEngine extends EventEmitter {
       // Pause the mic while the assistant talks — on web, TTS audio can leak
       // into the mic and get re-recognized as a new command / self-interrupt,
       // which was leaving the session stuck oscillating instead of responding.
-      this.stopListening();
+      this.stopListening({ preserveIntent: true });
       return;
     }
 
     if (!this.isDestroyed && options.startListening) {
       this.setState("LISTENING");
-      this.startListening();
+      this.startListening({ preserveIntent: true });
     }
   }
 
@@ -384,8 +400,8 @@ class VoiceEngine extends EventEmitter {
     if (this.restartTimer) clearTimeout(this.restartTimer);
 
     this.restartTimer = setTimeout(() => {
-      if (this.state === "LISTENING" && !this.isSpeaking && !this.isDestroyed) {
-        this.startListening();
+      if (this.shouldListen && this.state === "LISTENING" && !this.isSpeaking && !this.isDestroyed) {
+        this.startListening({ preserveIntent: true });
       }
     }, 1200);
   }
@@ -426,6 +442,7 @@ class VoiceEngine extends EventEmitter {
         console.log("[VoiceEngine] Wake word payload detected:", commandText);
         console.log("[VOICE ENGINE] COMMAND EMITTED:", commandText);
         this.setState("PROCESSING");
+        this.stopListening({ preserveIntent: true });
         this.emit("command", commandText);
         return;
       }
@@ -440,14 +457,12 @@ class VoiceEngine extends EventEmitter {
       return;
     }
 
-    if (!this.isActive) {
-      console.log("[VoiceEngine] Forcing active command mode for debugging");
-      this.isActive = true;
-    }
+    if (!this.isActive) return;
 
     const commandText = msg;
     console.log("[VOICE ENGINE] COMMAND EMITTED:", commandText);
     this.setState("PROCESSING");
+    this.stopListening({ preserveIntent: true });
     this.emit("command", commandText);
   }
 
@@ -456,6 +471,7 @@ class VoiceEngine extends EventEmitter {
   // ================================
   async destroy() {
     this.isDestroyed = true;
+    this.shouldListen = false;
 
     if (this.restartTimer) clearTimeout(this.restartTimer);
 

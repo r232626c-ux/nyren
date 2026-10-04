@@ -49,6 +49,8 @@ export default function SettingsScreen({ route, navigation }) {
   const [syncing, setSyncing] = useState(false);
   const { user, logout } = useAuth();
 
+  const GITHUB_PROJECT_URL = 'https://github.com';
+
   const handleLogout = () => {
     Alert.alert(
       'Log Out',
@@ -378,6 +380,36 @@ export default function SettingsScreen({ route, navigation }) {
 
     await Linking.openURL(url);
     return true;
+  };
+
+  const openProjectGitHub = async () => {
+    try {
+      const canOpen = await Linking.canOpenURL(GITHUB_PROJECT_URL);
+      if (canOpen) {
+        await Linking.openURL(GITHUB_PROJECT_URL);
+        return;
+      }
+      await Share.share({
+        message: `Check out this project on GitHub: ${GITHUB_PROJECT_URL}`,
+        url: GITHUB_PROJECT_URL,
+      });
+    } catch (error) {
+      await Share.share({
+        message: `Check out this project on GitHub: ${GITHUB_PROJECT_URL}`,
+        url: GITHUB_PROJECT_URL,
+      });
+    }
+  };
+
+  const shareProjectLink = async () => {
+    try {
+      await Share.share({
+        message: `Check out this project on GitHub: ${GITHUB_PROJECT_URL}`,
+        url: GITHUB_PROJECT_URL,
+      });
+    } catch (error) {
+      console.warn('[SettingsScreen] Share project link failed:', error);
+    }
   };
 
   const processPaymentWithMethod = async (method) => {
@@ -1020,6 +1052,24 @@ export default function SettingsScreen({ route, navigation }) {
         >
           <Ionicons name="share" size={16} color="#38bdf8" style={{ marginRight: 8 }} />
           <Text style={styles.secondaryText}>Export Data</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.secondaryBtn, { marginTop: 12 }]}
+          onPress={openProjectGitHub}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="logo-github" size={16} color="#38bdf8" style={{ marginRight: 8 }} />
+          <Text style={styles.secondaryText}>Open GitHub</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.secondaryBtn, { marginTop: 12 }]}
+          onPress={shareProjectLink}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="share-social" size={16} color="#38bdf8" style={{ marginRight: 8 }} />
+          <Text style={styles.secondaryText}>Share Project</Text>
         </TouchableOpacity>
 
         <TouchableOpacity

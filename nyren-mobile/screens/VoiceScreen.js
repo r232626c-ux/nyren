@@ -53,6 +53,7 @@ export default function VoiceScreen({ navigation }) {
   const [speaking, setSpeaking] = useState(false);
 
   const [isActive, setIsActive] = useState(false);
+  const [micEnabled, setMicEnabled] = useState(true);
 
   // Web browsers only allow a camera/file dialog to open from a direct,
   // synchronous tap — not from an async voice-command callback. When that
@@ -68,7 +69,6 @@ export default function VoiceScreen({ navigation }) {
   const voiceOutputRef = useRef(new VoiceOutputEngine());
   const micPulse = useRef(new Animated.Value(0)).current;
   const bgPulse = useRef(new Animated.Value(0)).current;
-  const announcedInboxRef = useRef(null);
 
   useEffect(() => {
     memoryGraphRef.current.clear();
@@ -155,7 +155,7 @@ export default function VoiceScreen({ navigation }) {
       await voiceOutputRef.current.interrupt();
       aiOrchestratorRef.current?.cancel();
       const engine = voiceEngineRef.current;
-      engine?.setSpeaking(false);
+      engine?.setSpeaking(false, { startListening: false });
       stateManagerRef.current.transitionTo("INTERRUPTING");
       setStatus("Interrupted");
       setEmotion("sad");
@@ -175,10 +175,13 @@ export default function VoiceScreen({ navigation }) {
 
     output.on("speechFinished", () => {
       setSpeaking(false);
-      voiceEngineRef.current?.setSpeaking(false, { startListening: false });
+      const engine = voiceEngineRef.current;
+      engine?.setSpeaking(false, { startListening: false });
       setEmotion("neutral");
-      stateManagerRef.current.transitionTo("LISTENING");
-      voiceEngineRef.current?.startListening();
+      if (engine?.shouldListen) {
+        stateManagerRef.current.transitionTo("LISTENING");
+        engine.startListening({ preserveIntent: true });
+      }
     });
 
     output.on("interrupted", () => {
@@ -192,7 +195,9 @@ export default function VoiceScreen({ navigation }) {
       setSpeaking(false);
       setEmotion("neutral");
       stateManagerRef.current.transitionTo("LISTENING");
-      voiceEngineRef.current?.startListening();
+      if (voiceEngineRef.current?.shouldListen) {
+        voiceEngineRef.current.startListening({ preserveIntent: true });
+      }
     });
   }, []);
 
@@ -207,6 +212,8 @@ export default function VoiceScreen({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       let active = true;
+      const engine = voiceEngineRef.current;
+      if (engine?.shouldListen) engine.startListening({ preserveIntent: true });
       const loadInboxSummary = async () => {
         try {
           const [requestsResponse, conversationsResponse] = await Promise.all([
@@ -222,13 +229,6 @@ export default function VoiceScreen({ navigation }) {
           if (!active) return;
           setInboxSummary(summary);
 
-          const announcementKey = `${summary.pendingRequests}:${summary.conversations}`;
-          if ((summary.pendingRequests || summary.conversations) && announcedInboxRef.current !== announcementKey) {
-            announcedInboxRef.current = announcementKey;
-            const message = `You have ${summary.pendingRequests} pending collaboration requests and ${summary.conversations} researcher conversations. Open your inbox to review them.`;
-            addAssistantMessage(message);
-            await speakText(message);
-          }
         } catch (error) {
           if (active) console.warn("[COMPANION] Inbox status unavailable:", error.message);
         }
@@ -237,9 +237,10 @@ export default function VoiceScreen({ navigation }) {
       loadInboxSummary();
       return () => {
         active = false;
-        announcedInboxRef.current = null;
+        voiceEngineRef.current?.stopListening({ preserveIntent: true });
+        cancelSpeech();
       };
-    }, [addAssistantMessage, speakText, user?.uuid])
+    }, [cancelSpeech, user?.uuid])
   );
 
   useEffect(() => {
@@ -434,6 +435,10 @@ export default function VoiceScreen({ navigation }) {
       await speakText("Sorry, I encountered an error processing your request.");
     } finally {
       setTyping(false);
+      const engine = voiceEngineRef.current;
+      if (engine?.shouldListen && !engine.isSpeaking) {
+        engine.startListening({ preserveIntent: true });
+      }
       setStatus(isActive ? "Listening..." : "Inactive - Say Hey Coli");
     }
   };
@@ -936,7 +941,7 @@ export default function VoiceScreen({ navigation }) {
           style={[
             styles.micButton,
             {
-              backgroundColor: isActive
+              backgroundColor: micEnabled
                 ? '#0f766e'
                 : '#111827',
             },
@@ -948,16 +953,19 @@ export default function VoiceScreen({ navigation }) {
             if (!engine) return;
 
             // STOP
-            if (engine.isListening) {
+            if (engine.shouldListen) {
               await engine.stopListening();
 
+              setMicEnabled(false);
               setIsActive(false);
               setStatus('Voice stopped');
               return;
             }
 
             // START
+            engine.isActive = true;
             await engine.startListening();
+            setMicEnabled(true);
             setIsActive(true);
             setStatus('Listening...');
           } catch (error) {
@@ -966,7 +974,7 @@ export default function VoiceScreen({ navigation }) {
         }}
       >
         <Ionicons
-          name={isActive ? 'mic' : 'mic-off'}
+          name={micEnabled ? 'mic' : 'mic-off'}
           size={42}
           color='#fff'
         />
